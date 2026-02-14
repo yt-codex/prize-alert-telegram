@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from typing import Dict
 
-import requests
-
 
 _JACKPOT_LABEL_PATTERN = re.compile(
     r"Next\s*Jackpot\s*\.?\s*(?P<value>[^<\n\r]+)",
@@ -16,6 +14,15 @@ _DRAW_LABEL_PATTERN = re.compile(
     r"Next\s*Draw\s*\.?\s*(?P<value>[^<\n\r]+)",
     flags=re.IGNORECASE,
 )
+
+
+_TAG_PATTERN = re.compile(r"<[^>]+>")
+
+
+def _html_to_text(html: str) -> str:
+    """Convert HTML to plain text for label/value regex parsing."""
+    no_tags = _TAG_PATTERN.sub(" ", html)
+    return re.sub(r"\s+", " ", no_tags).strip()
 
 
 def _extract_jackpot_estimate(html_text: str) -> float:
@@ -54,6 +61,17 @@ def _truncate_for_debug(text: str, limit: int = 200) -> str:
     return f"{compact[: limit - 3]}..."
 
 
+def parse_singaporepools_toto(html: str) -> Dict[str, object]:
+    """Parse Singapore Pools TOTO HTML and return normalized draw metadata."""
+    plain_text = _html_to_text(html)
+    jackpot_estimate = _extract_jackpot_estimate(plain_text)
+    draw_datetime_text = _extract_next_draw_text(plain_text)
+    return {
+        "jackpot_estimate": jackpot_estimate,
+        "draw_datetime_text": draw_datetime_text,
+    }
+
+
 def fetch_singaporepools_toto_next_draw(url: str, debug: bool = False) -> Dict[str, object]:
     """Fetch Singapore Pools TOTO page and return next jackpot estimate and next draw text.
 
@@ -69,6 +87,8 @@ def fetch_singaporepools_toto_next_draw(url: str, debug: bool = False) -> Dict[s
         requests.RequestException: For network/HTTP failures.
         ValueError: If required fields cannot be found or parsed.
     """
+    import requests
+
     response = requests.get(url, timeout=20)
     if debug:
         print(f"[debug] HTTP status code: {response.status_code}")
@@ -93,16 +113,12 @@ def fetch_singaporepools_toto_next_draw(url: str, debug: bool = False) -> Dict[s
             f"{_truncate_for_debug(draw_snippet, limit=200)}"
         )
 
-    jackpot_estimate = _extract_jackpot_estimate(html_text)
-    draw_datetime_text = _extract_next_draw_text(html_text)
+    parsed = parse_singaporepools_toto(html_text)
     if debug:
-        print(f"[debug] Parsed jackpot_estimate: {jackpot_estimate}")
-        print(f"[debug] Parsed draw_datetime_text: {draw_datetime_text}")
+        print(f"[debug] Parsed jackpot_estimate: {parsed['jackpot_estimate']}")
+        print(f"[debug] Parsed draw_datetime_text: {parsed['draw_datetime_text']}")
 
-    return {
-        "jackpot_estimate": jackpot_estimate,
-        "draw_datetime_text": draw_datetime_text,
-    }
+    return parsed
 
 
-__all__ = ["fetch_singaporepools_toto_next_draw"]
+__all__ = ["fetch_singaporepools_toto_next_draw", "parse_singaporepools_toto"]
