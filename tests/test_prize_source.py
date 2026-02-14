@@ -3,6 +3,8 @@
 from pathlib import Path
 import sys
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
@@ -22,3 +24,26 @@ def test_parse_singaporepools_toto_from_saved_fixture() -> None:
 
     assert parsed["jackpot_estimate"] == 1234567.0
     assert parsed["draw_datetime_text"] == "Mon, 08 Jul 2024, 6:30pm"
+
+
+def test_parse_handles_separated_html_nodes_for_jackpot_and_draw() -> None:
+    html = """
+    <div>
+      <span>Next</span><span>Jackpot</span>
+      <div><strong>S$</strong><em>1,000,000</em></div>
+      <p>Next <span>Draw</span>: Thu, 11 Jul 2024, 6:30pm</p>
+      <div>Results</div>
+    </div>
+    """
+
+    parsed = parse_singaporepools_toto(html)
+
+    assert parsed["jackpot_estimate"] == 1000000.0
+    assert parsed["draw_datetime_text"] == "Thu, 11 Jul 2024, 6:30pm"
+
+
+def test_parse_raises_helpful_error_when_jackpot_anchor_missing() -> None:
+    html = "<div>Next Draw Mon, 08 Jul 2024, 6:30pm</div>"
+
+    with pytest.raises(ValueError, match="Could not find jackpot anchor"):
+        parse_singaporepools_toto(html)
