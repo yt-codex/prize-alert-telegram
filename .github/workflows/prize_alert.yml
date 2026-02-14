@@ -2,10 +2,39 @@ name: Prize Alert
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
 
 jobs:
-  placeholder:
+  prize-alert:
     runs-on: ubuntu-latest
     steps:
-      - name: Placeholder
-        run: echo "TODO: add prize alert workflow steps"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore alert state cache
+        uses: actions/cache@v4
+        with:
+          path: .state
+          key: prize-alert-state
+          restore-keys: |
+            prize-alert-state
+
+      - name: Parsing smoke check
+        run: python src/debug_parse.py
+
+      - name: Run prize alert check
+        env:
+          CONFIG_PATH: config.yaml
+          STATE_PATH: .state/last_alert.json
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python src/check_prize.py
