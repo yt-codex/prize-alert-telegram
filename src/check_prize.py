@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -13,6 +14,7 @@ from telegram import send_telegram_message
 
 DEFAULT_CONFIG_PATH = "config.yaml"
 DEFAULT_CURRENCY = "SGD"
+DEFAULT_STATE_PATH = ".state/last_alert.json"
 
 
 def _parse_scalar(value: str) -> Any:
@@ -96,6 +98,26 @@ def _require_env(name: str) -> str:
     return value
 
 
+def _normalize_draw_id(draw_datetime_text: str) -> str:
+    return " ".join(draw_datetime_text.split())
+
+
+def _read_last_alerted_draw_id(state_path: Path) -> str | None:
+    if not state_path.exists():
+        return None
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    draw_id = payload.get("last_alerted_draw_id")
+    return str(draw_id) if draw_id is not None else None
+
+
+def _write_last_alerted_draw_id(state_path: Path, draw_id: str) -> None:
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(
+        json.dumps({"last_alerted_draw_id": draw_id}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     config_path = os.getenv("CONFIG_PATH", DEFAULT_CONFIG_PATH)
     config = _load_yaml_config(config_path)
@@ -113,6 +135,8 @@ def main() -> int:
     live = fetch_singaporepools_toto_next_draw(source_url)
     jackpot_estimate = float(live["jackpot_estimate"])
     draw_datetime_text = str(live["draw_datetime_text"])
+    draw_id = _normalize_draw_id(draw_datetime_text)
+    state_path = Path(os.getenv("STATE_PATH", DEFAULT_STATE_PATH))
     prize_amount_str = format(jackpot_estimate, ",.0f")
     threshold_amount_str = format(threshold_amount, ",.0f")
 
@@ -123,6 +147,11 @@ def main() -> int:
             f"threshold_amount={threshold_amount_str}, "
             f"draw_datetime_text={draw_datetime_text}"
         )
+        return 0
+
+    last_alerted_draw_id = _read_last_alerted_draw_id(state_path)
+    if last_alerted_draw_id == draw_id:
+        print("Already alerted for this draw")
         return 0
 
     alert_cfg = config.get("alert", {})
@@ -142,12 +171,14 @@ def main() -> int:
     if os.getenv("DRY_RUN") == "1":
         print("DRY_RUN enabled; Telegram message not sent.")
         print(message)
+        _write_last_alerted_draw_id(state_path, draw_id)
         return 0
 
     bot_token = _require_env("TELEGRAM_BOT_TOKEN")
     chat_id = _require_env("TELEGRAM_CHAT_ID")
     send_telegram_message(bot_token=bot_token, chat_id=chat_id, text=message)
     print("Alert sent.")
+    _write_last_alerted_draw_id(state_path, draw_id)
     return 0
 
 

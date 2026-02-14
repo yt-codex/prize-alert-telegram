@@ -85,3 +85,58 @@ def test_dry_run_prints_message_without_telegram(monkeypatch: pytest.MonkeyPatch
     output = capsys.readouterr().out
     assert "DRY_RUN enabled; Telegram message not sent." in output
     assert "Draw Mon, 08 Jul 2024, 6:30pm" in output
+
+
+
+def test_alert_above_threshold_updates_state_and_skips_duplicate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    config_path = _write_config(tmp_path / "config.yaml")
+    state_path = tmp_path / "state" / "last_alert.json"
+
+    monkeypatch.setenv("CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("STATE_PATH", str(state_path))
+    monkeypatch.delenv("DRY_RUN", raising=False)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat")
+
+    monkeypatch.setattr(
+        check_prize,
+        "fetch_singaporepools_toto_next_draw",
+        lambda url: {"jackpot_estimate": 1100000.0, "draw_datetime_text": "Mon, 08 Jul 2024, 6:30pm"},
+    )
+
+    sent = {"count": 0}
+
+    def _send(**kwargs):
+        sent["count"] += 1
+
+    monkeypatch.setattr(check_prize, "send_telegram_message", _send)
+
+    assert check_prize.main() == 0
+    assert sent["count"] == 1
+    assert state_path.exists()
+    assert '"last_alerted_draw_id": "Mon, 08 Jul 2024, 6:30pm"' in state_path.read_text(encoding="utf-8")
+
+    assert check_prize.main() == 0
+    assert sent["count"] == 1
+    output = capsys.readouterr().out
+    assert "Already alerted for this draw" in output
+
+
+def test_no_alert_below_threshold_does_not_write_state(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path / "config.yaml")
+    state_path = tmp_path / "state" / "last_alert.json"
+
+    monkeypatch.setenv("CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("STATE_PATH", str(state_path))
+    monkeypatch.delenv("DRY_RUN", raising=False)
+
+    monkeypatch.setattr(
+        check_prize,
+        "fetch_singaporepools_toto_next_draw",
+        lambda url: {"jackpot_estimate": 900000.0, "draw_datetime_text": "Thu, 11 Jul 2024, 6:30pm"},
+    )
+
+    monkeypatch.setattr(check_prize, "send_telegram_message", lambda **kwargs: None)
+
+    assert check_prize.main() == 0
+    assert not state_path.exists()
