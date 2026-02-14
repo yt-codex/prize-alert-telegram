@@ -113,12 +113,14 @@ def main() -> int:
     live = fetch_singaporepools_toto_next_draw(source_url)
     jackpot_estimate = float(live["jackpot_estimate"])
     draw_datetime_text = str(live["draw_datetime_text"])
+    prize_amount_str = format(jackpot_estimate, ",.0f")
+    threshold_amount_str = format(threshold_amount, ",.0f")
 
     if jackpot_estimate <= threshold_amount:
         print(
             "No alert: "
-            f"jackpot_estimate={jackpot_estimate}, "
-            f"threshold_amount={threshold_amount}, "
+            f"jackpot_estimate={prize_amount_str}, "
+            f"threshold_amount={threshold_amount_str}, "
             f"draw_datetime_text={draw_datetime_text}"
         )
         return 0
@@ -131,8 +133,8 @@ def main() -> int:
         raise ValueError("Missing 'alert.message_template' in config.")
 
     message = message_template.format(
-        prize_amount=jackpot_estimate,
-        threshold_amount=threshold_amount,
+        prize_amount=prize_amount_str,
+        threshold_amount=threshold_amount_str,
         currency=currency,
         draw_datetime_text=draw_datetime_text,
     )
