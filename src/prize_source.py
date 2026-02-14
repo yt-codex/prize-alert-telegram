@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict
+from typing import Dict, Optional
 
 from html.parser import HTMLParser
 
@@ -12,6 +12,9 @@ _NEXT_JACKPOT_PATTERN = re.compile(r"next\s*jackpot", flags=re.IGNORECASE)
 _JACKPOT_PATTERN = re.compile(r"jackpot", flags=re.IGNORECASE)
 _NEXT_PATTERN = re.compile(r"next", flags=re.IGNORECASE)
 _NEXT_DRAW_PATTERN = re.compile(r"next\s*draw", flags=re.IGNORECASE)
+DEFAULT_TOTO_NEXT_DRAW_ESTIMATE_URL = (
+    "https://www.singaporepools.com.sg/DataFileArchive/Lottery/Output/toto_next_draw_estimate_en.html"
+)
 
 
 class _VisibleTextParser(HTMLParser):
@@ -59,89 +62,55 @@ def _parse_amount_to_float(raw_amount: str) -> float:
     return float(cleaned)
 
 
-def _extract_jackpot_estimate(text: str, debug: bool = False) -> float:
-    """Extract and normalize the Singapore Pools next jackpot estimate from anchor window."""
-    anchor_index = _find_jackpot_anchor(text)
-    if debug:
-        print(
-            f"[debug] Next Jackpot anchor found: {anchor_index != -1}; index: {anchor_index}"
-        )
-
-    excerpt_index = anchor_index
-    if excerpt_index == -1:
-        fallback = _JACKPOT_PATTERN.search(text)
-        excerpt_index = fallback.start() if fallback else 0
-    if debug:
-        print(f"[debug] Jackpot excerpt: {_truncate_for_debug(text[excerpt_index:excerpt_index+200])}")
-
-    if anchor_index == -1:
-        raise ValueError(
-            "Could not find jackpot anchor: expected 'Next Jackpot' or 'Jackpot' with 'Next' within 40 characters before it."
-        )
-
-    window = text[anchor_index : anchor_index + 400]
-    if debug:
-        print(f"[debug] Jackpot window: {_truncate_for_debug(window, limit=200)}")
-
-    amount_patterns = [
-        re.compile(r"(?:S\$|\$)\s*\d[\d,]*(?:\.\d+)?", flags=re.IGNORECASE),
-        re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?"),
+def _extract_jackpot_match(text: str) -> str:
+    jackpot_patterns = [
+        re.compile(
+            r"next\s*jackpot\s*(?:est\.?\s*)?(?:is\s*)?(?P<amount>(?:S\$|\$)?\s*\d[\d,]*(?:\.\d+)?)",
+            flags=re.IGNORECASE,
+        ),
+        re.compile(
+            r"jackpot\s*(?:est\.?\s*)?(?:is\s*)?(?P<amount>(?:S\$|\$)?\s*\d[\d,]*(?:\.\d+)?)",
+            flags=re.IGNORECASE,
+        ),
     ]
-    amount_match = None
-    for pattern in amount_patterns:
-        amount_match = pattern.search(window)
-        if amount_match:
-            break
+    for pattern in jackpot_patterns:
+        match = pattern.search(text)
+        if match:
+            return match.group(0)
+    raise ValueError("Could not parse jackpot estimate from Singapore Pools page text.")
 
+
+def _extract_next_draw_match(text: str) -> str:
+    next_draw_pattern = re.compile(
+        r"next\s*draw\s*[:\-]?\s*(?P<draw>(?:[A-Za-z]{3}\s*,\s*)?\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s*,\s*\d{1,2}[.:]\d{2}\s*(?:am|pm))",
+        flags=re.IGNORECASE,
+    )
+    match = next_draw_pattern.search(text)
+    if not match:
+        raise ValueError("Could not parse next draw date/time from Singapore Pools page text.")
+    return match.group(0)
+
+
+def _extract_jackpot_estimate(text: str, debug: bool = False) -> float:
+    """Extract and normalize the Singapore Pools next jackpot estimate."""
+    jackpot_match = _extract_jackpot_match(text)
+    amount_match = re.search(r"(?:S\$|\$)?\s*\d[\d,]*(?:\.\d+)?", jackpot_match, flags=re.IGNORECASE)
     if not amount_match:
-        raise ValueError(
-            "Could not find a jackpot amount near the jackpot anchor (expected currency-like values such as '$1,000,000' or '1,000,000')."
-        )
-
-    jackpot_estimate = _parse_amount_to_float(amount_match.group(0))
-    if debug:
-        print(f"[debug] Parsed jackpot_estimate: {jackpot_estimate}")
-    return jackpot_estimate
+        raise ValueError("Could not parse a numeric jackpot amount from matched jackpot text.")
+    return _parse_amount_to_float(amount_match.group(0))
 
 
 def _extract_next_draw_text(text: str, debug: bool = False) -> str:
-    """Extract the 'Next Draw' text from a forward anchor window."""
-    draw_anchor = _NEXT_DRAW_PATTERN.search(text)
-    anchor_index = draw_anchor.start() if draw_anchor else -1
-    if debug:
-        print(f"[debug] Next Draw anchor found: {draw_anchor is not None}; index: {anchor_index}")
-
-    excerpt_index = anchor_index if anchor_index != -1 else 0
-    if debug:
-        print(f"[debug] Next Draw excerpt: {_truncate_for_debug(text[excerpt_index:excerpt_index+200])}")
-
-    if not draw_anchor:
-        raise ValueError("Could not find 'Next Draw' anchor in Singapore Pools page text.")
-
-    window = text[anchor_index : anchor_index + 500]
-    if debug:
-        print(f"[debug] Next Draw window: {_truncate_for_debug(window, limit=200)}")
-
-    after_label = window[draw_anchor.end() - anchor_index :].strip(" .:-")
-    stop_patterns = [
-        re.compile(r"\b(?:Draw\s*Results?|Results?|Jackpot)\b", flags=re.IGNORECASE),
-    ]
-
-    stop_index = len(after_label)
-    for stop_pattern in stop_patterns:
-        stop_match = stop_pattern.search(after_label)
-        if stop_match:
-            stop_index = min(stop_index, stop_match.start())
-
-    draw_text = after_label[:stop_index].strip(" .:-")
-    draw_text = re.sub(r"\s+", " ", draw_text)
-    if not draw_text:
-        raise ValueError("Found 'Next Draw' anchor but could not extract a draw datetime text.")
-
-    if debug:
-        print(f"[debug] Parsed draw_datetime_text: {draw_text}")
-
-    return draw_text
+    """Extract the 'Next Draw' text from normalized page text."""
+    next_draw_match = _extract_next_draw_match(text)
+    draw_match = re.search(
+        r"(?:[A-Za-z]{3}\s*,\s*)?\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s*,\s*\d{1,2}[.:]\d{2}\s*(?:am|pm)",
+        next_draw_match,
+        flags=re.IGNORECASE,
+    )
+    if not draw_match:
+        raise ValueError("Could not parse draw date/time from matched next draw text.")
+    return draw_match.group(0).strip()
 
 
 def _truncate_for_debug(text: str, limit: int = 200) -> str:
@@ -155,41 +124,46 @@ def _truncate_for_debug(text: str, limit: int = 200) -> str:
 def parse_singaporepools_toto(html: str, debug: bool = False) -> Dict[str, object]:
     """Parse Singapore Pools TOTO HTML and return normalized draw metadata."""
     plain_text = _html_to_text(html)
-    if debug:
-        print(f"[debug] Normalized text length: {len(plain_text)}")
+    jackpot_match = _extract_jackpot_match(plain_text)
+    next_draw_match = _extract_next_draw_match(plain_text)
 
     jackpot_estimate = _extract_jackpot_estimate(plain_text, debug=debug)
     draw_datetime_text = _extract_next_draw_text(plain_text, debug=debug)
+    if debug:
+        print(f"[debug] Normalized text: {_truncate_for_debug(plain_text, limit=200)}")
+        print(f"[debug] Matched jackpot substring: {_truncate_for_debug(jackpot_match, limit=200)}")
+        print(f"[debug] Matched next draw substring: {_truncate_for_debug(next_draw_match, limit=200)}")
+        print(
+            "[debug] Final parsed values: "
+            f"jackpot_estimate={jackpot_estimate}, draw_datetime_text={draw_datetime_text!r}"
+        )
     return {
         "jackpot_estimate": jackpot_estimate,
         "draw_datetime_text": draw_datetime_text,
     }
 
 
-def fetch_singaporepools_toto_next_draw(url: str, debug: bool = False) -> Dict[str, object]:
-    """Fetch Singapore Pools TOTO page and return next jackpot estimate and next draw text.
+def fetch_singaporepools_toto_next_draw(url: Optional[str], debug: bool = False) -> Dict[str, object]:
+    """Fetch Singapore Pools TOTO page and return next jackpot estimate and next draw text."""
+    from urllib import error, request
 
-    Args:
-        url: Singapore Pools TOTO results URL.
+    target_url = url.strip() if isinstance(url, str) else ""
+    if not target_url:
+        target_url = DEFAULT_TOTO_NEXT_DRAW_ESTIMATE_URL
 
-    Returns:
-        Dictionary with:
-          - jackpot_estimate: float dollar estimate of the next jackpot.
-          - draw_datetime_text: next draw date/time text as shown on the page.
+    req = request.Request(target_url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with request.urlopen(req, timeout=20) as response:
+            status_code = getattr(response, "status", None)
+            html = response.read().decode("utf-8", errors="replace")
+    except error.URLError as exc:
+        raise ValueError(f"Failed to fetch Singapore Pools TOTO page: {exc}") from exc
 
-    Raises:
-        requests.RequestException: For network/HTTP failures.
-        ValueError: If required fields cannot be found or parsed.
-    """
-    import requests
-
-    response = requests.get(url, timeout=20)
     if debug:
-        print(f"[debug] HTTP status code: {response.status_code}")
+        print(f"[debug] HTTP status code: {status_code}")
+        print(f"[debug] URL: {target_url}")
 
-    response.raise_for_status()
-
-    return parse_singaporepools_toto(response.text, debug=debug)
+    return parse_singaporepools_toto(html, debug=debug)
 
 
 __all__ = ["fetch_singaporepools_toto_next_draw", "parse_singaporepools_toto"]
