@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from prize_source import fetch_singaporepools_toto_next_draw
+from src.prize_source import fetch_singaporepools_toto_next_draw
 
 
 DEFAULT_TOTO_URL = (

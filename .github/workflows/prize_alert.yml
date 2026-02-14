@@ -29,7 +29,7 @@ jobs:
             prize-alert-state
 
       - name: Parsing smoke check
-        run: python src/debug_parse.py
+        run: python -m src.debug_parse
 
       - name: Run prize alert check
         env:
@@ -37,4 +37,4 @@ jobs:
           STATE_PATH: .state/last_alert.json
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python src/check_prize.py
+        run: python -m src.check_prize

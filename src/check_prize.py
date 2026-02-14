@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-from prize_source import fetch_singaporepools_toto_next_draw
-from telegram import send_telegram_message
+from src.prize_source import fetch_singaporepools_toto_next_draw
+from src.telegram import send_telegram_message
 
 
 DEFAULT_CONFIG_PATH = "config.yaml"
