@@ -3,7 +3,7 @@ name: Prize Alert
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 0 * * 2,6"
 
 jobs:
   prize-alert:
