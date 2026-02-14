@@ -1,0 +1,2 @@
+# Python dependencies
+# TODO: Add runtime dependencies (e.g., requests, python-telegram-bot, PyYAML).
