@@ -46,7 +46,15 @@ def _extract_next_draw_text(html_text: str) -> str:
     return draw_text
 
 
-def fetch_singaporepools_toto_next_draw(url: str) -> Dict[str, object]:
+def _truncate_for_debug(text: str, limit: int = 200) -> str:
+    """Return a one-line, length-limited string for concise debug output."""
+    compact = re.sub(r"\s+", " ", text).strip()
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[: limit - 3]}..."
+
+
+def fetch_singaporepools_toto_next_draw(url: str, debug: bool = False) -> Dict[str, object]:
     """Fetch Singapore Pools TOTO page and return next jackpot estimate and next draw text.
 
     Args:
@@ -62,11 +70,34 @@ def fetch_singaporepools_toto_next_draw(url: str) -> Dict[str, object]:
         ValueError: If required fields cannot be found or parsed.
     """
     response = requests.get(url, timeout=20)
+    if debug:
+        print(f"[debug] HTTP status code: {response.status_code}")
+
     response.raise_for_status()
 
     html_text = response.text
+    if debug:
+        print(f"[debug] Response text length: {len(html_text)}")
+
+    jackpot_match = _JACKPOT_LABEL_PATTERN.search(html_text)
+    draw_match = _DRAW_LABEL_PATTERN.search(html_text)
+    if debug:
+        jackpot_snippet = jackpot_match.group(0) if jackpot_match else "<no match>"
+        draw_snippet = draw_match.group(0) if draw_match else "<no match>"
+        print(
+            "[debug] Next Jackpot match snippet: "
+            f"{_truncate_for_debug(jackpot_snippet, limit=200)}"
+        )
+        print(
+            "[debug] Next Draw match snippet: "
+            f"{_truncate_for_debug(draw_snippet, limit=200)}"
+        )
+
     jackpot_estimate = _extract_jackpot_estimate(html_text)
     draw_datetime_text = _extract_next_draw_text(html_text)
+    if debug:
+        print(f"[debug] Parsed jackpot_estimate: {jackpot_estimate}")
+        print(f"[debug] Parsed draw_datetime_text: {draw_datetime_text}")
 
     return {
         "jackpot_estimate": jackpot_estimate,
