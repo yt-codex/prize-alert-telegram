@@ -1,15 +1,11 @@
 """Unit tests for deterministic parsing of Singapore Pools TOTO HTML."""
 
 from pathlib import Path
-import sys
+
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from prize_source import parse_singaporepools_toto
+from src import prize_source
+from src.prize_source import parse_singaporepools_toto
 
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "toto_results_sample.html"
@@ -81,7 +77,6 @@ def test_fetch_defaults_to_archive_url_when_url_empty(monkeypatch: pytest.Monkey
         return DummyResponse()
 
     from urllib import request as urllib_request
-    import prize_source
 
     monkeypatch.setattr(urllib_request, "urlopen", fake_urlopen)
 

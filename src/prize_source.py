@@ -3,15 +3,9 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, Optional
-
 from html.parser import HTMLParser
 
 
-_NEXT_JACKPOT_PATTERN = re.compile(r"next\s*jackpot", flags=re.IGNORECASE)
-_JACKPOT_PATTERN = re.compile(r"jackpot", flags=re.IGNORECASE)
-_NEXT_PATTERN = re.compile(r"next", flags=re.IGNORECASE)
-_NEXT_DRAW_PATTERN = re.compile(r"next\s*draw", flags=re.IGNORECASE)
 DEFAULT_TOTO_NEXT_DRAW_ESTIMATE_URL = (
     "https://www.singaporepools.com.sg/DataFileArchive/Lottery/Output/toto_next_draw_estimate_en.html"
 )
@@ -38,20 +32,6 @@ def _html_to_text(html: str) -> str:
     parser.feed(html)
     visible_text = parser.get_text()
     return re.sub(r"\s+", " ", visible_text).strip()
-
-
-def _find_jackpot_anchor(text: str) -> int:
-    """Locate the jackpot anchor index using the requested fallback semantics."""
-    next_jackpot = _NEXT_JACKPOT_PATTERN.search(text)
-    if next_jackpot:
-        return next_jackpot.start()
-
-    for match in _JACKPOT_PATTERN.finditer(text):
-        lookback_start = max(0, match.start() - 40)
-        if _NEXT_PATTERN.search(text[lookback_start : match.start()]):
-            return match.start()
-
-    return -1
 
 
 def _parse_amount_to_float(raw_amount: str) -> float:
@@ -91,8 +71,7 @@ def _extract_next_draw_match(text: str) -> str:
     return match.group(0)
 
 
-def _extract_jackpot_estimate(text: str, debug: bool = False) -> float:
-    """Extract and normalize the Singapore Pools next jackpot estimate."""
+def _extract_jackpot_estimate(text: str) -> float:
     jackpot_match = _extract_jackpot_match(text)
     amount_match = re.search(r"(?:S\$|\$)?\s*\d[\d,]*(?:\.\d+)?", jackpot_match, flags=re.IGNORECASE)
     if not amount_match:
@@ -100,8 +79,7 @@ def _extract_jackpot_estimate(text: str, debug: bool = False) -> float:
     return _parse_amount_to_float(amount_match.group(0))
 
 
-def _extract_next_draw_text(text: str, debug: bool = False) -> str:
-    """Extract the 'Next Draw' text from normalized page text."""
+def _extract_next_draw_text(text: str) -> str:
     next_draw_match = _extract_next_draw_match(text)
     draw_match = re.search(
         r"(?:[A-Za-z]{3}\s*,\s*)?\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s*,\s*\d{1,2}[.:]\d{2}\s*(?:am|pm)",
@@ -121,14 +99,14 @@ def _truncate_for_debug(text: str, limit: int = 200) -> str:
     return f"{compact[: limit - 3]}..."
 
 
-def parse_singaporepools_toto(html: str, debug: bool = False) -> Dict[str, object]:
+def parse_singaporepools_toto(html: str, debug: bool = False) -> dict[str, object]:
     """Parse Singapore Pools TOTO HTML and return normalized draw metadata."""
     plain_text = _html_to_text(html)
     jackpot_match = _extract_jackpot_match(plain_text)
     next_draw_match = _extract_next_draw_match(plain_text)
 
-    jackpot_estimate = _extract_jackpot_estimate(plain_text, debug=debug)
-    draw_datetime_text = _extract_next_draw_text(plain_text, debug=debug)
+    jackpot_estimate = _extract_jackpot_estimate(plain_text)
+    draw_datetime_text = _extract_next_draw_text(plain_text)
     if debug:
         print(f"[debug] Normalized text: {_truncate_for_debug(plain_text, limit=200)}")
         print(f"[debug] Matched jackpot substring: {_truncate_for_debug(jackpot_match, limit=200)}")
@@ -143,7 +121,7 @@ def parse_singaporepools_toto(html: str, debug: bool = False) -> Dict[str, objec
     }
 
 
-def fetch_singaporepools_toto_next_draw(url: Optional[str], debug: bool = False) -> Dict[str, object]:
+def fetch_singaporepools_toto_next_draw(url: str | None, debug: bool = False) -> dict[str, object]:
     """Fetch Singapore Pools TOTO page and return next jackpot estimate and next draw text."""
     from urllib import error, request
 
