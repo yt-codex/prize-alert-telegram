@@ -10,7 +10,7 @@
 # To make alerts happen more often, lower threshold.amount.
 # To make alerts happen less often, raise threshold.amount.
 threshold:
-  amount: 5000000
+  amount: 500000
   currency: "SGD"
 
 # ---- Prize data source ----
