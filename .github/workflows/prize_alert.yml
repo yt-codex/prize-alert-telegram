@@ -1,8 +1,8 @@
 name: Prize Alert
 
 on:
-  schedule:
-    - cron: "0 0 * * 2,6"
+  #schedule:
+  #  - cron: "0 0 * * 2,6"
   workflow_dispatch:
 
 jobs:
