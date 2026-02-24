@@ -10,7 +10,7 @@
 # To make alerts happen more often, lower threshold.amount.
 # To make alerts happen less often, raise threshold.amount.
 threshold:
-  amount: 500000
+  amount: 4000000
   currency: "SGD"
 
 # ---- Prize data source ----
@@ -29,8 +29,7 @@ alert:
   message_template: |
     🎉 Prize Alert Triggered!
 
-    Current jackpot estimate: {prize_amount} {currency}
-    Alert threshold: {threshold_amount} {currency}
+    Current Toto prize estimate: {prize_amount} {currency}
     Next draw: {draw_datetime_text}
 
     🚀 The jackpot is above your configured threshold.
