@@ -20,31 +20,53 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore alert state cache
+        uses: actions/cache@v4
+        with:
+          path: .state
+          key: prize-alert-state
+          restore-keys: |
+            prize-alert-state
+
       - name: Run scheduled workload
         id: workload
         continue-on-error: true
+        env:
+          CONFIG_PATH: config.yaml
+          STATE_PATH: .state/last_alert.json
+          OPS_RUNTIME_PATH: ops/runtime_report.json
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          START_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           START_TS=$(date -u +%s)
-          # Replace this block with your actual scheduled command(s)
-          python - <<'PY'
-          print("run your scheduled task here")
-          PY
+          echo "start_time=$START_TIME" >> "$GITHUB_OUTPUT"
+
+          set +e
+          python -m src.check_prize
+          EXIT_CODE=$?
+          set -e
+
+          END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           END_TS=$(date -u +%s)
+          echo "end_time=$END_TIME" >> "$GITHUB_OUTPUT"
           echo "duration_seconds=$((END_TS - START_TS))" >> "$GITHUB_OUTPUT"
+          exit $EXIT_CODE
 
       - name: Emit probe.json (non-blocking)
         if: always()
         continue-on-error: true
         run: |
-          STATUS="OK"
-          if [ "${{ steps.workload.outcome }}" = "failure" ]; then
-            STATUS="FAIL"
-          fi
           python ops/emit_probe.py \
             --output ops/probe.json \
-            --status "$STATUS" \
+            --runtime-report ops/runtime_report.json \
+            --workload-outcome "${{ steps.workload.outcome }}" \
+            --start-time "${{ steps.workload.outputs.start_time }}" \
+            --end-time "${{ steps.workload.outputs.end_time }}" \
             --duration-seconds "${{ steps.workload.outputs.duration_seconds }}" \
-            --warning "workload outcome: ${{ steps.workload.outcome }}" \
             --artifact "workflow_run=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Commit latest probe

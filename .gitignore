@@ -45,3 +45,7 @@ htmlcov/
 # OS-generated files
 .DS_Store
 Thumbs.db
+
+# Runtime state/probe intermediates
+.state/
+ops/runtime_report.json
