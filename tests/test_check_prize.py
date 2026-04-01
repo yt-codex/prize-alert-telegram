@@ -196,6 +196,42 @@ def test_alert_above_threshold_on_non_draw_day_is_suppressed(monkeypatch: pytest
     assert report["row_counts"]["alerts_sent"] == 0
 
 
+def test_alerts_disabled_skips_send_and_state_write(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    config_path = _write_config(tmp_path / "config.yaml")
+    state_path = tmp_path / "state" / "last_alert.json"
+    runtime_path = _set_runtime_path(monkeypatch, tmp_path)
+
+    monkeypatch.setenv("CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("STATE_PATH", str(state_path))
+    monkeypatch.setenv("ENABLE_ALERTS", "0")
+    monkeypatch.delenv("DRY_RUN", raising=False)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat")
+
+    monkeypatch.setattr(
+        check_prize,
+        "fetch_singaporepools_toto_next_draw",
+        lambda url: {"jackpot_estimate": 1100000.0, "draw_datetime_text": "Tue, 09 Jul 2024, 6:30pm"},
+    )
+
+    sent = {"count": 0}
+
+    def _send(**kwargs):
+        sent["count"] += 1
+
+    monkeypatch.setattr(check_prize, "send_telegram_message", _send)
+
+    assert check_prize.main() == 0
+    assert sent["count"] == 0
+    assert not state_path.exists()
+    output = capsys.readouterr().out
+    assert "Alerts disabled; Telegram message not sent." in output
+    report = json.loads(runtime_path.read_text(encoding="utf-8"))
+    assert report["status"] == "OK"
+    assert report["row_counts"]["alerts_generated"] == 0
+    assert report["row_counts"]["alerts_sent"] == 0
+
+
 def test_runtime_report_marks_fail_when_fetch_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     config_path = _write_config(tmp_path / "config.yaml")
     runtime_path = _set_runtime_path(monkeypatch, tmp_path)

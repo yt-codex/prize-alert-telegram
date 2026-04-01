@@ -38,6 +38,7 @@ jobs:
           CONFIG_PATH: config.yaml
           STATE_PATH: .state/last_alert.json
           OPS_RUNTIME_PATH: ops/runtime_report.json
+          ENABLE_ALERTS: "0"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |

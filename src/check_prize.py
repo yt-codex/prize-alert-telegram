@@ -380,6 +380,10 @@ def _write_last_alerted_draw_id(state_path: Path, draw_id: str) -> None:
     )
 
 
+def _alerts_enabled() -> bool:
+    return os.getenv("ENABLE_ALERTS", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
 def _run_pipeline(runtime_report: dict[str, Any]) -> int:
     config_path = os.getenv("CONFIG_PATH", DEFAULT_CONFIG_PATH)
     runtime_report["row_counts"]["symbols_monitored"] = 1
@@ -538,6 +542,27 @@ def _run_pipeline(runtime_report: dict[str, Any]) -> int:
         )
         _set_breakpoint(runtime_report, BP_STATE, STATUS_OK, "State unchanged because signal did not trigger.")
         _set_breakpoint(runtime_report, BP_TELEGRAM, STATUS_OK, "Telegram send skipped because signal did not trigger.")
+        return 0
+
+    if not _alerts_enabled():
+        print("Alerts disabled; Telegram message not sent.")
+        _set_key_check(
+            runtime_report,
+            CHECK_TELEGRAM_SEND_SUCCESS_RATE,
+            STATUS_OK,
+            "Alerts disabled by runtime configuration; Telegram send skipped.",
+            metric=1.0,
+        )
+        _set_key_check(
+            runtime_report,
+            CHECK_STATE_PERSISTED,
+            STATUS_OK,
+            "No state write required because alerts were disabled.",
+            metric=1.0,
+        )
+        _set_breakpoint(runtime_report, BP_STATE, STATUS_OK, "State unchanged because alerts were disabled.")
+        _set_breakpoint(runtime_report, BP_TELEGRAM, STATUS_OK, "Telegram send skipped because alerts were disabled.")
+        runtime_report["row_counts"]["alerts_generated"] = 0
         return 0
 
     try:
