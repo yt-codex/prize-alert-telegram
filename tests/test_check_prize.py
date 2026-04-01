@@ -47,7 +47,7 @@ def test_no_alert_when_threshold_not_exceeded(monkeypatch: pytest.MonkeyPatch, t
     monkeypatch.setattr(
         check_prize,
         "fetch_singaporepools_toto_next_draw",
-        lambda url: {"jackpot_estimate": 900000.0, "draw_datetime_text": "Thu, 11 Jul 2024, 6:30pm"},
+        lambda url: {"jackpot_estimate": 900000.0, "draw_datetime_text": "Tue, 09 Jul 2024, 6:30pm"},
     )
 
     called = {"sent": False}
@@ -61,7 +61,7 @@ def test_no_alert_when_threshold_not_exceeded(monkeypatch: pytest.MonkeyPatch, t
     assert called["sent"] is False
     output = capsys.readouterr().out
     assert "No alert:" in output
-    assert "draw_datetime_text=Thu, 11 Jul 2024, 6:30pm" in output
+    assert "draw_datetime_text=Tue, 09 Jul 2024, 6:30pm" in output
     report = json.loads(runtime_path.read_text(encoding="utf-8"))
     assert report["status"] == "OK"
     assert report["row_counts"]["prices_fetched"] == 1
@@ -77,7 +77,7 @@ def test_dry_run_prints_message_without_telegram(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(
         check_prize,
         "fetch_singaporepools_toto_next_draw",
-        lambda url: {"jackpot_estimate": 1100000.0, "draw_datetime_text": "Mon, 08 Jul 2024, 6:30pm"},
+        lambda url: {"jackpot_estimate": 1100000.0, "draw_datetime_text": "Tue, 09 Jul 2024, 6:30pm"},
     )
 
     called = {"sent": False}
@@ -92,7 +92,7 @@ def test_dry_run_prints_message_without_telegram(monkeypatch: pytest.MonkeyPatch
 
     output = capsys.readouterr().out
     assert "DRY_RUN enabled; Telegram message not sent." in output
-    assert "Draw Mon, 08 Jul 2024, 6:30pm" in output
+    assert "Draw Tue, 09 Jul 2024, 6:30pm" in output
     report = json.loads(runtime_path.read_text(encoding="utf-8"))
     assert report["status"] == "OK"
     assert report["row_counts"]["alerts_generated"] == 1
@@ -100,6 +100,68 @@ def test_dry_run_prints_message_without_telegram(monkeypatch: pytest.MonkeyPatch
 
 
 def test_alert_above_threshold_updates_state_and_skips_duplicate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    config_path = _write_config(tmp_path / "config.yaml")
+    state_path = tmp_path / "state" / "last_alert.json"
+    runtime_path = _set_runtime_path(monkeypatch, tmp_path)
+
+    monkeypatch.setenv("CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("STATE_PATH", str(state_path))
+    monkeypatch.delenv("DRY_RUN", raising=False)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat")
+
+    monkeypatch.setattr(
+        check_prize,
+        "fetch_singaporepools_toto_next_draw",
+        lambda url: {"jackpot_estimate": 1100000.0, "draw_datetime_text": "Tue, 09 Jul 2024, 6:30pm"},
+    )
+
+    sent = {"count": 0}
+
+    def _send(**kwargs):
+        sent["count"] += 1
+
+    monkeypatch.setattr(check_prize, "send_telegram_message", _send)
+
+    assert check_prize.main() == 0
+    assert sent["count"] == 1
+    assert state_path.exists()
+    assert '"last_alerted_draw_id": "Tue, 09 Jul 2024, 6:30pm"' in state_path.read_text(encoding="utf-8")
+
+    assert check_prize.main() == 0
+    assert sent["count"] == 1
+    output = capsys.readouterr().out
+    assert "Already alerted for this draw" in output
+    report = json.loads(runtime_path.read_text(encoding="utf-8"))
+    assert report["status"] == "OK"
+    assert report["row_counts"]["alerts_sent"] == 0
+
+
+def test_no_alert_below_threshold_does_not_write_state(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path / "config.yaml")
+    state_path = tmp_path / "state" / "last_alert.json"
+    runtime_path = _set_runtime_path(monkeypatch, tmp_path)
+
+    monkeypatch.setenv("CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("STATE_PATH", str(state_path))
+    monkeypatch.delenv("DRY_RUN", raising=False)
+
+    monkeypatch.setattr(
+        check_prize,
+        "fetch_singaporepools_toto_next_draw",
+        lambda url: {"jackpot_estimate": 900000.0, "draw_datetime_text": "Tue, 09 Jul 2024, 6:30pm"},
+    )
+
+    monkeypatch.setattr(check_prize, "send_telegram_message", lambda **kwargs: None)
+
+    assert check_prize.main() == 0
+    assert not state_path.exists()
+    report = json.loads(runtime_path.read_text(encoding="utf-8"))
+    assert report["status"] == "OK"
+    assert report["row_counts"]["alerts_generated"] == 0
+
+
+def test_alert_above_threshold_on_non_draw_day_is_suppressed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     config_path = _write_config(tmp_path / "config.yaml")
     state_path = tmp_path / "state" / "last_alert.json"
     runtime_path = _set_runtime_path(monkeypatch, tmp_path)
@@ -124,41 +186,14 @@ def test_alert_above_threshold_updates_state_and_skips_duplicate(monkeypatch: py
     monkeypatch.setattr(check_prize, "send_telegram_message", _send)
 
     assert check_prize.main() == 0
-    assert sent["count"] == 1
-    assert state_path.exists()
-    assert '"last_alerted_draw_id": "Mon, 08 Jul 2024, 6:30pm"' in state_path.read_text(encoding="utf-8")
-
-    assert check_prize.main() == 0
-    assert sent["count"] == 1
-    output = capsys.readouterr().out
-    assert "Already alerted for this draw" in output
-    report = json.loads(runtime_path.read_text(encoding="utf-8"))
-    assert report["status"] == "OK"
-    assert report["row_counts"]["alerts_sent"] == 0
-
-
-def test_no_alert_below_threshold_does_not_write_state(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    config_path = _write_config(tmp_path / "config.yaml")
-    state_path = tmp_path / "state" / "last_alert.json"
-    runtime_path = _set_runtime_path(monkeypatch, tmp_path)
-
-    monkeypatch.setenv("CONFIG_PATH", str(config_path))
-    monkeypatch.setenv("STATE_PATH", str(state_path))
-    monkeypatch.delenv("DRY_RUN", raising=False)
-
-    monkeypatch.setattr(
-        check_prize,
-        "fetch_singaporepools_toto_next_draw",
-        lambda url: {"jackpot_estimate": 900000.0, "draw_datetime_text": "Thu, 11 Jul 2024, 6:30pm"},
-    )
-
-    monkeypatch.setattr(check_prize, "send_telegram_message", lambda **kwargs: None)
-
-    assert check_prize.main() == 0
+    assert sent["count"] == 0
     assert not state_path.exists()
+    output = capsys.readouterr().out
+    assert "No alert: draw day is not Tuesday/Saturday" in output
     report = json.loads(runtime_path.read_text(encoding="utf-8"))
     assert report["status"] == "OK"
     assert report["row_counts"]["alerts_generated"] == 0
+    assert report["row_counts"]["alerts_sent"] == 0
 
 
 def test_runtime_report_marks_fail_when_fetch_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
