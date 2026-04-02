@@ -1,16 +1,16 @@
 {
   "status": "OK",
-  "last_run_time": "2026-04-01T18:01:07Z",
-  "duration_seconds": 3.0,
+  "last_run_time": "2026-04-02T17:58:42Z",
+  "duration_seconds": 1.0,
   "freshness": {
-    "max_date": "2026-04-02T10:30:00Z",
+    "max_date": "2026-04-06T10:30:00Z",
     "lag_seconds": 0.0
   },
   "row_counts": {
     "symbols_monitored": 1,
     "prices_fetched": 1,
-    "alerts_generated": 1,
-    "alerts_sent": 1,
+    "alerts_generated": 0,
+    "alerts_sent": 0,
     "alerts_failed": 0
   },
   "schema_hash": "2e96cafdf4be8a680ec81d8f78df42396b32092652e431340c9141cab74c7b61",
@@ -36,19 +36,19 @@
     {
       "name": "rules_evaluated",
       "status": "OK",
-      "detail": "Signal evaluation completed for threshold rule.",
+      "detail": "Signal evaluation completed for threshold rule and draw-day guard.",
       "metric": 1.0
     },
     {
       "name": "telegram_send_success_rate",
       "status": "OK",
-      "detail": "Telegram alert delivered.",
+      "detail": "Alert suppressed because next draw is not on Tuesday or Saturday.",
       "metric": 1.0
     },
     {
       "name": "state_persisted",
       "status": "OK",
-      "detail": "State persisted with latest alerted draw id.",
+      "detail": "No state write required because alert was suppressed by draw-day guard.",
       "metric": 1.0
     }
   ],
@@ -56,14 +56,14 @@
   "artifact_links": [
     {
       "label": "workflow_run",
-      "url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/23863198944"
+      "url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/23914490826"
     }
   ],
   "meta": {
-    "run_id": "23863198944",
-    "run_url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/23863198944",
+    "run_id": "23914490826",
+    "run_url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/23914490826",
     "workflow": "Scheduled Ops Probe",
     "job": "run-and-emit-probe",
-    "sha": "e82252defe388386fe9cbcdb9c5f0e622325c05c"
+    "sha": "b113b65dced3bd67da8c7ee6f5e8f07e0f05c402"
   }
 }
