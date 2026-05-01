@@ -197,14 +197,6 @@ def _freshness_threshold_seconds() -> float:
     return threshold if threshold >= 0 else float(DEFAULT_FRESHNESS_THRESHOLD_SECONDS)
 
 
-def _draw_is_allowed_toto_day(draw_datetime_text: str) -> bool | None:
-    draw_utc = _draw_datetime_to_utc(draw_datetime_text)
-    if draw_utc is None:
-        return None
-    draw_sgt = draw_utc.astimezone(SINGAPORE_TIMEZONE)
-    return draw_sgt.weekday() in {1, 5}
-
-
 def _evaluate_freshness(runtime_report: dict[str, Any], draw_datetime_text: str) -> None:
     draw_utc = _draw_datetime_to_utc(draw_datetime_text)
     freshness = runtime_report.setdefault("freshness", {})
@@ -451,19 +443,17 @@ def _run_pipeline(runtime_report: dict[str, Any]) -> int:
     _evaluate_freshness(runtime_report, draw_datetime_text)
     state_path = Path(os.getenv("STATE_PATH", DEFAULT_STATE_PATH))
 
-    draw_day_allowed = _draw_is_allowed_toto_day(draw_datetime_text)
     signal_triggered = jackpot_estimate > threshold_amount
     runtime_report["row_counts"]["alerts_generated"] = 1 if signal_triggered else 0
     rules_detail = (
         f"Signal evaluated: jackpot_estimate={jackpot_estimate:.2f}, "
-        f"threshold_amount={threshold_amount:.2f}, triggered={signal_triggered}, "
-        f"allowed_draw_day={draw_day_allowed}."
+        f"threshold_amount={threshold_amount:.2f}, triggered={signal_triggered}."
     )
     _set_key_check(
         runtime_report,
         CHECK_RULES_EVALUATED,
         STATUS_OK,
-        "Signal evaluation completed for threshold rule and draw-day guard.",
+        "Signal evaluation completed for threshold rule.",
         metric=1.0,
     )
     _set_breakpoint(
@@ -472,49 +462,6 @@ def _run_pipeline(runtime_report: dict[str, Any]) -> int:
         STATUS_OK,
         rules_detail,
     )
-
-    if draw_day_allowed is None:
-        print(f"No alert: unable to validate draw weekday for {draw_datetime_text}")
-        _add_warning(runtime_report, "Draw weekday validation failed; alert suppressed.")
-        _set_key_check(
-            runtime_report,
-            CHECK_TELEGRAM_SEND_SUCCESS_RATE,
-            STATUS_OK,
-            "Alert suppressed because draw weekday could not be validated.",
-            metric=1.0,
-        )
-        _set_key_check(
-            runtime_report,
-            CHECK_STATE_PERSISTED,
-            STATUS_OK,
-            "No state write required because alert was suppressed.",
-            metric=1.0,
-        )
-        _set_breakpoint(runtime_report, BP_STATE, STATUS_OK, "State unchanged because draw weekday validation failed.")
-        _set_breakpoint(runtime_report, BP_TELEGRAM, STATUS_OK, "Telegram send skipped because draw weekday validation failed.")
-        runtime_report["row_counts"]["alerts_generated"] = 0
-        return 0
-
-    if not draw_day_allowed:
-        print(f"No alert: draw day is not Tuesday/Saturday ({draw_datetime_text})")
-        _set_key_check(
-            runtime_report,
-            CHECK_TELEGRAM_SEND_SUCCESS_RATE,
-            STATUS_OK,
-            "Alert suppressed because next draw is not on Tuesday or Saturday.",
-            metric=1.0,
-        )
-        _set_key_check(
-            runtime_report,
-            CHECK_STATE_PERSISTED,
-            STATUS_OK,
-            "No state write required because alert was suppressed by draw-day guard.",
-            metric=1.0,
-        )
-        _set_breakpoint(runtime_report, BP_STATE, STATUS_OK, "State unchanged because draw day is outside Tuesday/Saturday.")
-        _set_breakpoint(runtime_report, BP_TELEGRAM, STATUS_OK, "Telegram send skipped because draw day is outside Tuesday/Saturday.")
-        runtime_report["row_counts"]["alerts_generated"] = 0
-        return 0
 
     prize_amount_str = format(jackpot_estimate, ",.0f")
     threshold_amount_str = format(threshold_amount, ",.0f")

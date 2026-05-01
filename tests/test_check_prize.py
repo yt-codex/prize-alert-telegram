@@ -161,7 +161,7 @@ def test_no_alert_below_threshold_does_not_write_state(monkeypatch: pytest.Monke
     assert report["row_counts"]["alerts_generated"] == 0
 
 
-def test_alert_above_threshold_on_non_draw_day_is_suppressed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+def test_alert_above_threshold_does_not_depend_on_draw_weekday(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     config_path = _write_config(tmp_path / "config.yaml")
     state_path = tmp_path / "state" / "last_alert.json"
     runtime_path = _set_runtime_path(monkeypatch, tmp_path)
@@ -175,7 +175,7 @@ def test_alert_above_threshold_on_non_draw_day_is_suppressed(monkeypatch: pytest
     monkeypatch.setattr(
         check_prize,
         "fetch_singaporepools_toto_next_draw",
-        lambda url: {"jackpot_estimate": 1100000.0, "draw_datetime_text": "Mon, 08 Jul 2024, 6:30pm"},
+        lambda url: {"jackpot_estimate": 1100000.0, "draw_datetime_text": "Thu, 30 Apr 2026, 6:30pm"},
     )
 
     sent = {"count": 0}
@@ -186,14 +186,12 @@ def test_alert_above_threshold_on_non_draw_day_is_suppressed(monkeypatch: pytest
     monkeypatch.setattr(check_prize, "send_telegram_message", _send)
 
     assert check_prize.main() == 0
-    assert sent["count"] == 0
-    assert not state_path.exists()
-    output = capsys.readouterr().out
-    assert "No alert: draw day is not Tuesday/Saturday" in output
+    assert sent["count"] == 1
+    assert state_path.exists()
     report = json.loads(runtime_path.read_text(encoding="utf-8"))
     assert report["status"] == "OK"
-    assert report["row_counts"]["alerts_generated"] == 0
-    assert report["row_counts"]["alerts_sent"] == 0
+    assert report["row_counts"]["alerts_generated"] == 1
+    assert report["row_counts"]["alerts_sent"] == 1
 
 
 def test_alerts_disabled_skips_send_and_state_write(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
