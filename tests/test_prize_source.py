@@ -74,6 +74,7 @@ def test_fetch_defaults_to_archive_url_when_url_empty(monkeypatch: pytest.Monkey
     def fake_urlopen(req, timeout: int) -> DummyResponse:
         captured["url"] = req.full_url
         captured["timeout"] = timeout
+        captured["user_agent"] = req.headers.get("User-agent")
         return DummyResponse()
 
     from urllib import request as urllib_request
@@ -83,6 +84,40 @@ def test_fetch_defaults_to_archive_url_when_url_empty(monkeypatch: pytest.Monkey
     parsed = prize_source.fetch_singaporepools_toto_next_draw("  ")
 
     assert captured["url"] == prize_source.DEFAULT_TOTO_NEXT_DRAW_ESTIMATE_URL
-    assert captured["timeout"] == 20
+    assert captured["timeout"] == prize_source.DEFAULT_FETCH_TIMEOUT_SECONDS
+    assert "prize-alert-telegram" in captured["user_agent"]
     assert parsed["jackpot_estimate"] == 1000000.0
     assert parsed["draw_datetime_text"] == "Tue, 17 Feb 2026, 6.30pm"
+
+
+def test_fetch_retries_timeout_with_cache_buster(monkeypatch: pytest.MonkeyPatch) -> None:
+    attempts = []
+
+    class DummyResponse:
+        status = 200
+
+        def read(self) -> bytes:
+            return b"<div>Next Jackpot Est $2,000,000</div><div>Next Draw Wed, 18 Feb 2026, 6.30pm</div>"
+
+        def __enter__(self) -> "DummyResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+    def fake_urlopen(req, timeout: int) -> DummyResponse:
+        attempts.append(req.full_url)
+        if len(attempts) == 1:
+            raise TimeoutError("timed out")
+        return DummyResponse()
+
+    from urllib import request as urllib_request
+
+    monkeypatch.setattr(urllib_request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(prize_source.time, "sleep", lambda seconds: None)
+
+    parsed = prize_source.fetch_singaporepools_toto_next_draw("https://example.test/toto.html")
+
+    assert attempts == ["https://example.test/toto.html", "https://example.test/toto.html?_retry=1"]
+    assert parsed["jackpot_estimate"] == 2000000.0
+    assert parsed["draw_datetime_text"] == "Wed, 18 Feb 2026, 6.30pm"

@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import os
 import re
+import time
 from html.parser import HTMLParser
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 DEFAULT_TOTO_NEXT_DRAW_ESTIMATE_URL = (
     "https://www.singaporepools.com.sg/DataFileArchive/Lottery/Output/toto_next_draw_estimate_en.html"
 )
+DEFAULT_FETCH_TIMEOUT_SECONDS = 10
+DEFAULT_FETCH_ATTEMPTS = 3
 
 
 class _VisibleTextParser(HTMLParser):
@@ -121,27 +126,76 @@ def parse_singaporepools_toto(html: str, debug: bool = False) -> dict[str, objec
     }
 
 
+def _positive_int_from_env(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _with_cache_buster(url: str, attempt_index: int) -> str:
+    if attempt_index <= 0:
+        return url
+    split = urlsplit(url)
+    query = parse_qsl(split.query, keep_blank_values=True)
+    query.append(("_retry", str(attempt_index)))
+    return urlunsplit((split.scheme, split.netloc, split.path, urlencode(query), split.fragment))
+
+
 def fetch_singaporepools_toto_next_draw(url: str | None, debug: bool = False) -> dict[str, object]:
-    """Fetch Singapore Pools TOTO page and return next jackpot estimate and next draw text."""
+    """Fetch Singapore Pools TOTO page and return next jackpot estimate and next draw text.
+
+    Singapore Pools' static archive endpoint occasionally accepts the connection on
+    GitHub runners and then stalls during the body read. Use a few bounded attempts
+    with fresh requests so one slow edge/cache node does not make the alert miss a
+    valid draw.
+    """
     from urllib import error, request
 
     target_url = url.strip() if isinstance(url, str) else ""
     if not target_url:
         target_url = DEFAULT_TOTO_NEXT_DRAW_ESTIMATE_URL
 
-    req = request.Request(target_url, headers={"User-Agent": "Mozilla/5.0"})
-    try:
-        with request.urlopen(req, timeout=20) as response:
-            status_code = getattr(response, "status", None)
-            html = response.read().decode("utf-8", errors="replace")
-    except error.URLError as exc:
-        raise ValueError(f"Failed to fetch Singapore Pools TOTO page: {exc}") from exc
+    timeout_seconds = _positive_int_from_env("SINGAPOREPOOLS_FETCH_TIMEOUT_SECONDS", DEFAULT_FETCH_TIMEOUT_SECONDS)
+    attempts = _positive_int_from_env("SINGAPOREPOOLS_FETCH_ATTEMPTS", DEFAULT_FETCH_ATTEMPTS)
+    last_error: BaseException | None = None
+    status_code = None
 
-    if debug:
-        print(f"[debug] HTTP status code: {status_code}")
-        print(f"[debug] URL: {target_url}")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; prize-alert-telegram/1.0; +https://github.com/yt-codex/prize-alert-telegram)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-SG,en;q=0.9",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
 
-    return parse_singaporepools_toto(html, debug=debug)
+    for attempt_index in range(attempts):
+        attempt_url = _with_cache_buster(target_url, attempt_index)
+        req = request.Request(attempt_url, headers=headers)
+        try:
+            with request.urlopen(req, timeout=timeout_seconds) as response:
+                status_code = getattr(response, "status", None)
+                html = response.read().decode("utf-8", errors="replace")
+            if debug:
+                print(f"[debug] HTTP status code: {status_code}")
+                print(f"[debug] URL: {attempt_url}")
+                print(f"[debug] Fetch attempt: {attempt_index + 1}/{attempts}")
+            return parse_singaporepools_toto(html, debug=debug)
+        except (TimeoutError, OSError, error.URLError) as exc:
+            last_error = exc
+            if debug:
+                print(f"[debug] Fetch attempt {attempt_index + 1}/{attempts} failed: {exc}")
+            if attempt_index + 1 < attempts:
+                time.sleep(min(2, attempt_index + 1))
+
+    raise ValueError(
+        "Failed to fetch Singapore Pools TOTO page "
+        f"after {attempts} attempt(s) with {timeout_seconds}s timeout: {last_error}"
+    ) from last_error
 
 
 __all__ = ["fetch_singaporepools_toto_next_draw", "parse_singaporepools_toto"]
