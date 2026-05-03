@@ -1,14 +1,14 @@
 {
-  "status": "FAIL",
-  "last_run_time": "2026-05-02T18:00:35Z",
-  "duration_seconds": 21.0,
+  "status": "OK",
+  "last_run_time": "2026-05-03T02:15:06Z",
+  "duration_seconds": 1.0,
   "freshness": {
-    "max_date": null,
-    "lag_seconds": null
+    "max_date": "2026-05-04T13:30:00Z",
+    "lag_seconds": 0.0
   },
   "row_counts": {
     "symbols_monitored": 1,
-    "prices_fetched": 0,
+    "prices_fetched": 1,
     "alerts_generated": 0,
     "alerts_sent": 0,
     "alerts_failed": 0
@@ -23,46 +23,47 @@
     },
     {
       "name": "price_fetch_success_rate",
-      "status": "FAIL",
-      "detail": "Market price fetch failed: The read operation timed out",
-      "metric": 0.0
+      "status": "OK",
+      "detail": "Fetched market price data for 1/1 monitored symbol.",
+      "metric": 1.0
     },
     {
       "name": "freshness_within_threshold",
-      "status": "WARN",
-      "detail": "Not evaluated."
+      "status": "OK",
+      "detail": "Freshness lag 0.0s is within threshold 259200.0s.",
+      "metric": 0.0
     },
     {
       "name": "rules_evaluated",
-      "status": "WARN",
-      "detail": "Not evaluated."
+      "status": "OK",
+      "detail": "Signal evaluation completed for threshold rule.",
+      "metric": 1.0
     },
     {
       "name": "telegram_send_success_rate",
-      "status": "WARN",
-      "detail": "Not evaluated."
+      "status": "OK",
+      "detail": "Alerts disabled by runtime configuration; Telegram send skipped.",
+      "metric": 1.0
     },
     {
       "name": "state_persisted",
-      "status": "WARN",
-      "detail": "Not evaluated."
+      "status": "OK",
+      "detail": "No state write required because alerts were disabled.",
+      "metric": 1.0
     }
   ],
-  "warnings": [
-    "The read operation timed out",
-    "workload outcome: failure"
-  ],
+  "warnings": [],
   "artifact_links": [
     {
       "label": "workflow_run",
-      "url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/25258259984"
+      "url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/25267510893"
     }
   ],
   "meta": {
-    "run_id": "25258259984",
-    "run_url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/25258259984",
+    "run_id": "25267510893",
+    "run_url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/25267510893",
     "workflow": "Scheduled Ops Probe",
     "job": "run-and-emit-probe",
-    "sha": "78506809f96da4654b097060b4b19483eea80fe4"
+    "sha": "50dcbeb99ff9705d68d031250128ff7a05c3a010"
   }
 }
