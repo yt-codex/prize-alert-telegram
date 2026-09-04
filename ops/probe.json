@@ -1,6 +1,6 @@
 {
   "status": "OK",
-  "last_run_time": "2026-09-03T19:47:10Z",
+  "last_run_time": "2026-09-04T19:31:42Z",
   "duration_seconds": 2.0,
   "freshness": {
     "max_date": "2026-09-07T10:30:00Z",
@@ -56,14 +56,14 @@
   "artifact_links": [
     {
       "label": "workflow_run",
-      "url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/33798434811"
+      "url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/33911600032"
     }
   ],
   "meta": {
-    "run_id": "33798434811",
-    "run_url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/33798434811",
+    "run_id": "33911600032",
+    "run_url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/33911600032",
     "workflow": "Scheduled Ops Probe",
     "job": "run-and-emit-probe",
-    "sha": "281375d89230cceb270ec746db754ce627673d1b"
+    "sha": "75cff369855f022705839a68ee2217e840aa2f77"
   }
 }
