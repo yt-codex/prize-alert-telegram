@@ -1,9 +1,9 @@
 {
   "status": "OK",
-  "last_run_time": "2026-09-23T20:17:19Z",
+  "last_run_time": "2026-09-24T20:26:46Z",
   "duration_seconds": 1.0,
   "freshness": {
-    "max_date": "2026-09-24T10:30:00Z",
+    "max_date": "2026-09-28T10:30:00Z",
     "lag_seconds": 0.0
   },
   "row_counts": {
@@ -42,13 +42,13 @@
     {
       "name": "telegram_send_success_rate",
       "status": "OK",
-      "detail": "Alerts disabled by runtime configuration; Telegram send skipped.",
+      "detail": "No alert generated; Telegram send not required.",
       "metric": 1.0
     },
     {
       "name": "state_persisted",
       "status": "OK",
-      "detail": "No state write required because alerts were disabled.",
+      "detail": "No state write required because signal did not trigger.",
       "metric": 1.0
     }
   ],
@@ -56,14 +56,14 @@
   "artifact_links": [
     {
       "label": "workflow_run",
-      "url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/35914902164"
+      "url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/36054891423"
     }
   ],
   "meta": {
-    "run_id": "35914902164",
-    "run_url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/35914902164",
+    "run_id": "36054891423",
+    "run_url": "https://github.com/yt-codex/prize-alert-telegram/actions/runs/36054891423",
     "workflow": "Scheduled Ops Probe",
     "job": "run-and-emit-probe",
-    "sha": "7d451f3b4bea6cf9bbd3edafa34ef5ed17d1f582"
+    "sha": "ac72525f5bc4e004f1406ef5d4650cee45975f3d"
   }
 }
